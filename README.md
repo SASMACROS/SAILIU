@@ -13,7 +13,7 @@ You need to download both of
 2. Fill in parameters as needed (The full “CALL SPECI.sas” macro program is attached in Appendix)
 
       
-    Copyright (C) (2016) (Sai Liu)
+    Copyright (C) (2016) (Sai Liu, Magaret R Stedman)
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
