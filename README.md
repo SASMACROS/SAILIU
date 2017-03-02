@@ -3,11 +3,17 @@
 This website will introduce a customizable user-friendly SAS® macro %SPECI to quickly produce a one page report that organizes multiple commonly-used statistics to help you compare and select the appropriate functional form from continuous, categorical, and spline terms in linear regression, logistic regression, and survival analysis models.  
 
 The statistics in the final report include:
+
 •	Plot showing an overlay of predicted values from the three functional forms. 
+
 •	Summary table of model statistics. (See complete list and descriptions for each model in Appendix A) 
+
 •	Plot of the residual values from the model where the covariate is continuous. 
+
 •	Plot of the observed values of the covariate and the outcome variable (linear and logistic regression models only)
+
 •	Kaplan Meier plot (survival model only). 
+
 
 # INSTRUCTIONS FOR USING MACRO %SPECI 
 
@@ -23,7 +29,7 @@ There are two SAS® editor programs: the main macro (SPECI.sas) and the program 
 # CONTACT INFORMATION 
   Your comments and questions are valued and encouraged. Contact the author at:
 
-  Sai Liu
+  # Sai Liu
 
   Division of Nephrology, Department of Medicine 
   Stanford University School of Medicine
