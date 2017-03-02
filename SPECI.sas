@@ -1,13 +1,31 @@
+
 /************************************************************************************************************/
 /*       NAME: SPECI.SAS                                         				  	    */
-/*      TITLE: Functional form Specification for Linear, Logistic, and Survial Models  			    */
-/*     AUTHOR: Sai Liu, MPH, Stanford University                                          		    */
-/*		   OS: Windows 7 Ultimate 64-bit							    */
-/*	 Software: SAS 9.4								    		    */
+/*      TITLE: SAS Macro for Covariate Specification in Linear, Logistic, and Survival Regression           */
+/*     AUTHOR: Sai Liu, MPH, Stanford University                                          	            */
+/*         OS: Windows 7 Ultimate 64-bit								    */
+/*   Software: SAS 9.4											    */
 /*       DATE: 09 FEB 2017                                        					    */
 /*DESCRIPTION: This program produces a one-page report to help users compare and select the appropriate     */
-/*			   functional form of a variable in linear, categorical, and spline form            */
+/*			   functional form of a variable in continuous, categorical, and spline form        */
+/*													    */
+/*    Copyright (C) <2017>  <Sai Liu and Margaret R Stedman>				                    */
+/*													    */
+/*    This program is free software: you can redistribute it and/or modify				    */
+/*    it under the terms of the GNU General Public License as published by			     	    */
+/*    the Free Software Foundation, either version 3 of the License, or					    */
+/*    (at your option) any later version.								    */
+/*													    */
+/*    This program is distributed in the hope that it will be useful,				            */
+/*    but WITHOUT ANY WARRANTY; without even the implied warranty of					    */
+/*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the					    */
+/*    GNU General Public License for more details.							    */
+/*													    */
+/*    You should have received a copy of the GNU General Public License					    */
+/*    along with this program.  If not, see <http://www.gnu.org/licenses/>.				    */
 /************************************************************************************************************/
+
+
 
 options nofmterr symbolgen mlogic notes;
 
@@ -81,11 +99,11 @@ ods listing;
 *Read in dataset from the folder you assign, or read in dataset from work library, if datain leaves blank;
 %if &datain.^=  %then %do;
 	libname lib &datain.;
-	data data;set lib.&dataset.(where=(&xvar_cont.^=.));run;
+	data mydata;set lib.&dataset.(where=(&xvar_cont.^=.));run;
 %end;
 
 %else %do;
-	data data;set work.&dataset.(where=(&xvar_cont.^=.));run;
+	data mydata;set work.&dataset.(where=(&xvar_cont.^=.));run;
 %end;
 
 
@@ -138,7 +156,7 @@ ods listing;
 
 
 * get the percentile value for each knot;
-proc univariate data=data noprint;
+proc univariate data=mydata noprint;
 	var &xvar_cont.;
 	output out=pcts pctlpts= %substr(&knot1,2) %substr(&knot2,2) %substr(&knot3,2) %substr(&knot4,2) %substr(&knot5,2)
 						     %substr(&knot6,2) %substr(&knot7,2) %substr(&knot8,2) %substr(&knot9,2) %substr(&knot10,2)
@@ -148,13 +166,13 @@ proc univariate data=data noprint;
 data Data_temp;
    if _N_ = 1 then
 		set pcts;
-		set data;
+		set mydata;
 		%rcspline(&xvar_cont.,&knot1., &knot2., &knot3., &knot4.,&knot5.,
 							  &knot6., &knot7., &knot8., &knot9.,&knot10., norm=&norm.);   														
 temp=1;run;
 
 * uniform order of categories to be newcat1~newcatN;
-proc freq data=data;
+proc freq data=mydata;
 	tables &xvar_cat./out=freq;
 run;
 
@@ -293,7 +311,7 @@ PROC SQL;
 * Keep predicted values for Y from mid-point;
 proc sort data=mid(firstobs=1 obs=1) out=mid1;by temp;run;
 *  calculate the centralized value by subtracting midpoint Y from each predicted value Y;
-data data_fig;
+data data_fig(rename= (ctr_line=continuous ctr_cat=categorical ctr_spline=spline));
 	merge Data_final mid1;
 	by temp;
 	ctr_line=Linear-mid_linear;
@@ -310,9 +328,9 @@ proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
 ods listing gpath="&dataout.";
 ods  graphics on / reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
-series x=&xvar_cont. y=ctr_line/LINEATTRS = (color=ROSE THICKNESS = 4);
-series x=&xvar_cont. y=ctr_cat/LINEATTRS = (color=o  THICKNESS = 4);
-series x=&xvar_cont. y=ctr_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+series x=&xvar_cont. y=continuous/LINEATTRS = (color=ROSE THICKNESS = 4);
+series x=&xvar_cont. y=categorical/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=spline/LINEATTRS = (color=BIGB THICKNESS = 4);
 YAXIS LABEL ="Centralized Predicted Y" ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
@@ -456,7 +474,7 @@ proc sort data=mid(firstobs=1 obs=1) out=mid1;by temp;run;
 
 
 *  calculate the centralized value by subtracting midpoint from each predicted value;
-data data_fig;
+data data_fig(rename= (log_mid_line=continuous log_mid_cat=categorical log_mid_spline=spline));
 	merge Data_final mid1;
 	by temp;
 	log_mid_line=Log_Linear-mid_linear;
@@ -474,9 +492,9 @@ proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
-series x=&xvar_cont. y=log_mid_line/LINEATTRS = (color=ROSE THICKNESS = 4);
-series x=&xvar_cont. y=log_mid_cat/LINEATTRS = (color=o  THICKNESS = 4);
-series x=&xvar_cont. y=log_mid_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+series x=&xvar_cont. y=continuous/LINEATTRS = (color=ROSE THICKNESS = 4);
+series x=&xvar_cont. y=categorical/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=spline/LINEATTRS = (color=BIGB THICKNESS = 4);
 YAXIS LABEL ="Centralized Logit(P(&yvar.=1))" ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
@@ -508,11 +526,11 @@ ods printer file="&dataout.\FigB - &xvar_cont..png";
 Proc report data=table nowd ;
 column _name_ col1 col2 col3 col4 col5 col6 col7 col8;
 define _name_ /"Diagnostic Statistics" group order=data ;
-define col1/ "R-Squared" analysis format=10.5 ;
-define col2/ "Max-rescaled R-Squared" analysis format=10.5 ;
-define col3/ "C-Statistics (bigger is better)" analysis format=10.5 ;
+define col1/ "R-Squared (larger is better)" analysis format=10.5 ;
+define col2/ "Max-rescaled R-Squared (larger is better)" analysis format=10.5 ;
+define col3/ "C-Statistics (larger is better)" analysis format=10.5 ;
 define col4/ "AIC (smaller is better)" analysis format=10.5 ;
-define col5/ "-2LogL (bigger is better)" analysis format=10.5 ;
+define col5/ "-2LogL (larger is better)" analysis format=10.5 ;
 define col6/ "Likelihood Test (P-value)" analysis format=10.4 ;
 define col7/ "Wald Test (P-value)" analysis format=10.4 ;
 define col8/ "Model Convergence(0=Yes, 1=No)" analysis format=1.0 ;
@@ -650,7 +668,7 @@ PROC SQL;
 proc sort data=mid(firstobs=1 obs=1) out=mid1;by temp;run;
 
 *  calculate the centralized value by subtracting midpoint from each predicted value;
-data data_fig;
+data data_fig(rename= (log_mid_line=continuous log_mid_cat=categorical log_mid_spline=spline));
 	merge Data_final mid1;
 	by temp;
 	log_mid_line=Log_Linear-mid_linear;
@@ -668,9 +686,9 @@ proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
-series x=&xvar_cont. y=log_mid_line/LINEATTRS = (color=ROSE THICKNESS = 4);
-series x=&xvar_cont. y=log_mid_cat/LINEATTRS = (color=o  THICKNESS = 4);
-series x=&xvar_cont. y=log_mid_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+series x=&xvar_cont. y=continuous/LINEATTRS = (color=ROSE THICKNESS = 4);
+series x=&xvar_cont. y=categorical/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=spline/LINEATTRS = (color=BIGB THICKNESS = 4);
 YAXIS LABEL ="Centralized Log(HR(&event.=1))" ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
