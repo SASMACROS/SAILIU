@@ -5,9 +5,13 @@ This website will introduce a customizable user-friendly SAS® macro %SPECI to q
 The statistics in the final report include:
 
 •	Plot showing an overlay of predicted values from the three functional forms. 
+
 •	Summary table of model statistics. (See complete list and descriptions for each model in Appendix A) 
+
 •	Plot of the residual values from the model where the covariate is continuous. 
+
 •	Plot of the observed values of the covariate and the outcome variable (linear and logistic regression models only)
+
 •	Kaplan Meier plot (survival model only). 
 
 
