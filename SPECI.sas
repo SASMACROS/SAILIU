@@ -5,7 +5,7 @@
 /*     AUTHOR: Sai Liu, MPH, Stanford University                                          	            */
 /*         OS: Windows 7 Ultimate 64-bit								    */
 /*   Software: SAS 9.4											    */
-/*       DATE: 09 FEB 2017                                        					    */
+/*       DATE: 29 DEC 2016                                        					    */
 /*DESCRIPTION: This program produces a one-page report to help users compare and select the appropriate     */
 /*			   functional form of a variable in continuous, categorical, and spline form        */
 /*													    */
@@ -393,7 +393,7 @@ proc sgpanel data =rplot_all;
 panelby Form/columns=3;
 scatter x=&xvar_cont. y=res;
 colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
-refline 0 /transparency=0.3 axis=y;run;
+refline 0 /transparency=0.5 axis=y;run;
 ods graphics off;
 ods printer close;
 
