@@ -311,7 +311,7 @@ PROC SQL;
 * Keep predicted values for Y from mid-point;
 proc sort data=mid(firstobs=1 obs=1) out=mid1;by temp;run;
 *  calculate the centralized value by subtracting midpoint Y from each predicted value Y;
-data data_fig(rename= (ctr_line=continuous ctr_cat=categorical ctr_spline=spline));
+data data_fig;
 	merge Data_final mid1;
 	by temp;
 	ctr_line=Linear-mid_linear;
@@ -320,6 +320,10 @@ data data_fig(rename= (ctr_line=continuous ctr_cat=categorical ctr_spline=spline
 	* Assign min and max value as new macro variables so as to set up x axis range in the plot;
 	call symput('minvalue',min);
 	call symput('maxvalue',max);
+	label ctr_line='Continuous';
+	label ctr_cat='Categorical';
+	label ctr_spline='Spline';
+
 run;
 * Sort dataset by exposure variable;
 proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
@@ -328,10 +332,10 @@ proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
 ods listing gpath="&dataout.";
 ods  graphics on / reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
-series x=&xvar_cont. y=continuous/LINEATTRS = (color=ROSE THICKNESS = 4);
-series x=&xvar_cont. y=categorical/LINEATTRS = (color=o  THICKNESS = 4);
-series x=&xvar_cont. y=spline/LINEATTRS = (color=BIGB THICKNESS = 4);
-YAXIS LABEL ="Centralized Predicted Y" ; 
+series x=&xvar_cont. y=ctr_line/LINEATTRS = (color=ROSE THICKNESS = 4);
+series x=&xvar_cont. y=ctr_cat/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=ctr_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+YAXIS LABEL ="Centralized Predicted &yvar." ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
 
@@ -340,8 +344,8 @@ ods printer close;
 
 /*Figure B (Summary Table for Comparing Model Statistics) */;
 * Integrate Statistics from models with exposure variable as continuous, categories, and spline;
-data table_line;length model $ 10;set est1line (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Linear"; if _n_=nobs;run;
-data table_cat;length model $ 10;set est1cat (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Category"; if _n_=nobs;run;
+data table_line;length model $ 10;set est1line (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Continuous"; if _n_=nobs;run;
+data table_cat;length model $ 10;set est1cat (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Categorical"; if _n_=nobs;run;
 data table_Spline;length model $ 10;set est1Spline (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Spline"; if _n_=nobs;run;
 data table1;set table_line table_cat table_Spline;run;
 
@@ -363,18 +367,33 @@ ods printer close;
 ods listing;
 
 /*Plot Figure C (Residual with predicted value) */;
-* output residuals;
+* output residuals of model with continuous, categorical and spline term, respectively;
 proc reg data=Data_prep;
   model &yvar.= &xvar_cont. &covarlist_cat. &covarlist_cont.;
-  output out=rplot p=pred r=res;run;
+  output out=rplot_c p=pred r=res;run;
+proc reg data=Data_prep;
+  model &yvar.= &xvar_cat. &covarlist_cat. &covarlist_cont.;
+  output out=rplot_cat p=pred r=res;run;
+proc reg data=Data_prep;
+  model &yvar.= &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont.;
+  output out=rplot_sp p=pred r=res;run;
+
+data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. res);Form='Continuous';run;
+data rplot_cat;length Form $12.;set rplot_cat(keep=&xvar_cont. res);Form='Categorical';run;
+data rplot_sp;length Form $12.;set rplot_sp(keep=&xvar_cont. res);Form='Spline';run;
+proc sort data=rplot_cat;by &xvar_cont.;run;
+proc sort data=rplot_c;by &xvar_cont.;run;
+proc sort data=rplot_sp;by &xvar_cont.;run;
+data rplot_all;	set rplot_c rplot_cat rplot_sp;	by &xvar_cont.;run;
+
 * Plot residual with value of independent variable from linear model;
 ods listing gpath="&dataout.";
 ods  graphics on / reset=index imagefmt=png imagename="FigC - &xvar_cont." ;
-proc sgplot data =rplot;											
+proc sgpanel data =rplot_all;	
+panelby Form/columns=3;
 scatter x=&xvar_cont. y=res;
-refline 0/transparency=0.5 axis=y;
-XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 	
-run;	
+colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
+refline 0 /transparency=0.3 axis=y;run;
 ods graphics off;
 ods printer close;
 
@@ -474,7 +493,7 @@ proc sort data=mid(firstobs=1 obs=1) out=mid1;by temp;run;
 
 
 *  calculate the centralized value by subtracting midpoint from each predicted value;
-data data_fig(rename= (log_mid_line=continuous log_mid_cat=categorical log_mid_spline=spline));
+data data_fig;
 	merge Data_final mid1;
 	by temp;
 	log_mid_line=Log_Linear-mid_linear;
@@ -483,7 +502,12 @@ data data_fig(rename= (log_mid_line=continuous log_mid_cat=categorical log_mid_s
 	* Assign min and max value as new macro variables so as to set up x axis range in the plot;
 	call symput('minvalue',min);
 	call symput('maxvalue',max);
+
+	label log_mid_line='Continuous';
+	label log_mid_cat='Categorical';
+	label log_mid_spline='Spline';
 run;
+
 
 * order dataset by exposure ;
 proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
@@ -492,9 +516,9 @@ proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
-series x=&xvar_cont. y=continuous/LINEATTRS = (color=ROSE THICKNESS = 4);
-series x=&xvar_cont. y=categorical/LINEATTRS = (color=o  THICKNESS = 4);
-series x=&xvar_cont. y=spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_line/LINEATTRS = (color=ROSE THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_cat/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
 YAXIS LABEL ="Centralized Logit(P(&yvar.=1))" ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
@@ -517,6 +541,10 @@ proc transpose data=&form._stat out=&form._tran(drop=_LABEL_);run;
 %form(cat)
 %form(spline)
 
+data line_tran;length _name_ $13;set line_tran; _NAME_="Continuous";run;
+data cat_tran;length _name_ $13;set cat_tran; _NAME_="Categorical";run;
+data spline_tran;length _name_ $13;set spline_tran; _NAME_="Spline";run;
+
 data table;	set line_tran cat_tran spline_tran;run;
 
 * Report Summary Table;
@@ -526,11 +554,11 @@ ods printer file="&dataout.\FigB - &xvar_cont..png";
 Proc report data=table nowd ;
 column _name_ col1 col2 col3 col4 col5 col6 col7 col8;
 define _name_ /"Diagnostic Statistics" group order=data ;
-define col1/ "R-Squared (larger is better)" analysis format=10.5 ;
-define col2/ "Max-rescaled R-Squared (larger is better)" analysis format=10.5 ;
-define col3/ "C-Statistics (larger is better)" analysis format=10.5 ;
+define col1/ "R-Squared (bigger is better)" analysis format=10.5 ;
+define col2/ "Max-rescaled R-Squared (bigger is better)" analysis format=10.5 ;
+define col3/ "C-Statistics (bigger is better)" analysis format=10.5 ;
 define col4/ "AIC (smaller is better)" analysis format=10.5 ;
-define col5/ "-2LogL (larger is better)" analysis format=10.5 ;
+define col5/ "-2LogL (bigger is better)" analysis format=10.5 ;
 define col6/ "Likelihood Test (P-value)" analysis format=10.4 ;
 define col7/ "Wald Test (P-value)" analysis format=10.4 ;
 define col8/ "Model Convergence(0=Yes, 1=No)" analysis format=1.0 ;
@@ -539,18 +567,39 @@ ods printer close;
 ods listing;
 
 /*Plot Figure C (Plotting Pearson Residual with value of exposure) */;
-* output Pearson residual;
+* output Pearson residual of model with continous, categorical and spline form;
 proc logistic data=Data_prep descending outest=est1Line;
   class &covarlist_cat.  / param=glm;
   model &yvar.= &xvar_cont. &covarlist_cat. &covarlist_cont.;
-  output out=rplot prob=p reschi=pr;run;
+  output out=rplot_c prob=p reschi=pr;run;
+proc logistic data=Data_prep descending outest=est1Line;
+  class &xvar_cat. &covarlist_cat.  / param=glm;
+  model &yvar.= &xvar_cat. &covarlist_cat. &covarlist_cont.;
+  output out=rplot_cat prob=p reschi=pr;run;
+proc logistic data=Data_prep descending outest=est1Line;
+  class &covarlist_cat.  / param=glm;
+  model &yvar.= &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont.;
+  output out=rplot_sp prob=p reschi=pr;run;
+  
+data rplot_cat;length Form $12.;set rplot_cat(keep=&xvar_cont. pr);Form='Categorical';run;
+data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. pr);Form='Continuous';run;
+data rplot_sp;length Form $12.;set rplot_sp(keep=&xvar_cont. pr);Form='Spline';run;
+
+proc sort data=rplot_cat;by &xvar_cont.;run;
+proc sort data=rplot_c;by &xvar_cont.;run;
+proc sort data=rplot_sp;by &xvar_cont.;run;
+
+data rplot_all;	set rplot_c rplot_cat rplot_sp;	by &xvar_cont.;run;
+
 * Plotting Pearson Residual with value of exposure from continuous model;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigC - &xvar_cont." ;
-proc sgplot data =rplot;											
+proc sgpanel data =rplot_all;	
+panelby Form/columns=3;
 scatter x=&xvar_cont. y=pr;
-XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
-refline 0/transparency=0.5 axis=y;run;
+colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
+refline 0 /transparency=0.2 axis=y;
+refline 3 -3 /transparency=0.6 axis=y;run;
 ods graphics off;
 ods printer close;
 
@@ -668,7 +717,7 @@ PROC SQL;
 proc sort data=mid(firstobs=1 obs=1) out=mid1;by temp;run;
 
 *  calculate the centralized value by subtracting midpoint from each predicted value;
-data data_fig(rename= (log_mid_line=continuous log_mid_cat=categorical log_mid_spline=spline));
+data data_fig;
 	merge Data_final mid1;
 	by temp;
 	log_mid_line=Log_Linear-mid_linear;
@@ -677,6 +726,10 @@ data data_fig(rename= (log_mid_line=continuous log_mid_cat=categorical log_mid_s
 	* Assign min and max value as new macro variables so as to set up x axis range in the plot;
 	call symput('minvalue',min);
 	call symput('maxvalue',max);
+
+	label log_mid_line='Continuous';
+	label log_mid_cat='Categorical';
+	label log_mid_spline='Spline';
 run;
 
 * Sort dataset by exposure variable;
@@ -686,9 +739,9 @@ proc sort data=data_fig out=Data_fig;by &xvar_cont.;run;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
-series x=&xvar_cont. y=continuous/LINEATTRS = (color=ROSE THICKNESS = 4);
-series x=&xvar_cont. y=categorical/LINEATTRS = (color=o  THICKNESS = 4);
-series x=&xvar_cont. y=spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_line/LINEATTRS = (color=ROSE THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_cat/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
 YAXIS LABEL ="Centralized Log(HR(&event.=1))" ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
@@ -707,6 +760,10 @@ proc transpose data=&form._stat out=&form._tran(drop=_LABEL_);run;
 %form(line)
 %form(cat)
 %form(spline)
+
+data line_tran;length _name_ $13;set line_tran; _NAME_="Continuous";run;
+data cat_tran;length _name_ $13;set cat_tran; _NAME_="Categorical";run;
+data spline_tran;length _name_ $13;set spline_tran; _NAME_="Spline";run;
 
 data table;	set line_tran cat_tran spline_tran;run;
 
@@ -728,18 +785,39 @@ ods printer close;
 ods listing;
 
 /* Plot Figure C (Deviance Residual with X) */;
-* output deviance residual;
+* output deviance residual of model with continuous, categorical and spline terms;
 proc phreg data=Data_fig;
   class &covarlist_cat.  / param=glm;
   model &time2event.*&EVENT.(0)= &xvar_cont. &covarlist_cat. &covarlist_cont./ties=efron;
-  output out=rplot resdev=dev;run;
+  output out=rplot_c resdev=dev;run;
+proc phreg data=Data_fig;
+  class &xvar_cat. &covarlist_cat. / param=glm;
+  model &time2event.*&EVENT.(0)= &xvar_cat. &covarlist_cat. &covarlist_cont./ties=efron;
+  output out=rplot_cat resdev=dev;run;
+proc phreg data=Data_fig;
+  class &covarlist_cat.  / param=glm;
+  model &time2event.*&EVENT.(0)= &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont./ties=efron;
+  output out=rplot_sp resdev=dev;run;
+
+data rplot_cat;length Form $12.;set rplot_cat(keep=&xvar_cont. dev);Form='Categorical';run;
+data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. dev);Form='Continuous';run;
+data rplot_sp;length Form $12.;set rplot_sp(keep=&xvar_cont. dev);Form='Spline';run;
+
+proc sort data=rplot_cat;by &xvar_cont.;run;
+proc sort data=rplot_c;by &xvar_cont.;run;
+proc sort data=rplot_sp;by &xvar_cont.;run;
+
+data rplot_all;	set rplot_c rplot_cat rplot_sp;	by &xvar_cont.;run;
+
 * Plot Devance Residual with predicted value of exposure as continuous;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigC - &xvar_cont." ;
-proc sgplot data =rplot;											
+proc sgpanel data =rplot_all;	
+panelby Form/columns=3;
 scatter x=&xvar_cont. y=dev;
-XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
-refline 0/transparency=0.5 axis=y;run;
+colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
+refline 0 /transparency=0.2 axis=y;
+refline 3 -3 /transparency=0.6 axis=y;run;
 ods graphics off;
 ods printer close;
 
@@ -787,4 +865,5 @@ ods listing;
  proc catalog c=work.gseg kill;run;
 
  %MEND REPORT;
+
 
