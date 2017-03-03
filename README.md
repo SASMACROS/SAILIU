@@ -8,7 +8,7 @@ The statistics in the final report include:
 
 •	Summary table of model statistics. (See complete list and descriptions for each model in Appendix A) 
 
-•	Plot of the residual values from the model where the covariate is continuous. 
+•	Panel plot of the residual values from the model with the covariate in continuous, categorical and spline terms. 
 
 •	Plot of the observed values of the covariate and the outcome variable (linear and logistic regression models only)
 
