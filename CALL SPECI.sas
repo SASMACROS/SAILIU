@@ -5,7 +5,7 @@
 /*     AUTHOR: Sai Liu, MPH, Stanford University                                          		    */
 /*		     OS: Windows 7 Ultimate 64-bit							    */
 /*	 Software: SAS 9.4										    */
-/*       DATE: 09 FEB 2017                                        					    */
+/*       DATE: 29 DEC 2016                                        					    */
 /*DESCRIPTION: This program shows how to call the SPECI.sas macro					    */
 /************************************************************************************************************/
 
