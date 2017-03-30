@@ -1,29 +1,30 @@
-# A SAS® Macro for Covariate Specification in Linear, Logistic, or Survival Regression
+# A SAS® Macro for Covariate Specification in Linear, Logistic, and Survival Regression
 
 This website will introduce a customizable user-friendly SAS® macro %SPECI to quickly produce a one page report that organizes multiple commonly-used statistics to help you compare and select the appropriate functional form from continuous, categorical, and spline terms in linear regression, logistic regression, and survival analysis models.  
 
+
 The statistics in the final report include:
 
-•	Plot showing an overlay of predicted values from the three functional forms. 
+•	Predicted Plot showing predicted values for each of the three functional forms. 
 
-•	Summary table of model statistics. (See complete list and descriptions for each model in Appendix A) 
+•	Summary Diagnostic Statistics Table (See complete list and descriptions for each model in Appendix A) 
 
-•	Panel plot of the residual values from the model with the covariate in continuous, categorical and spline terms. 
+•	Residual Plot - for model with the covariate in continuous, categorical and spline terms. 
 
-•	Plot of the observed values of the covariate and the outcome variable (linear and logistic regression models only)
+•	Correlation Plot - Distribution of outcome variable by the covariate in continuous form (linear and logistic regression models only)
 
 •	Kaplan Meier plot (survival model only). 
 
 
 # INSTRUCTIONS FOR USING MACRO %SPECI 
 
-There are two SAS® editor programs: the main macro (SPECI.sas) and the program to call the macro (CALL SPECI.sas). The call program is provided in the Appendix B and both the main macro and the call program are available upon request from the author (Sai Liu) and are posted to the GitHub website (https://github.com/SaiLMainpage/ModelSpecification).
+There are two SAS® editor programs: the main macro (SPECI.sas) and the program to call the macro (CALL SPECI.sas). The SAS proceeding paper for more instructions and details are available upon request from the author (Sai Liu) and will be posted on the website soon.
 
-• First, save the CALL SPECI.sas and SPECI.sas programs to your computer. Next, open “CALL SPECI.sas” and update the include statement to the directory where the “SPECI.sas” macro stored 
+• First, save the CALL SPECI.sas and SPECI.sas programs to your computer; 
 
-   %include "Directory/speci.sas";
+• Next, open “CALL SPECI.sas” and update the include statement (%include "Directory/speci.sas") to the directory where the “SPECI.sas” macro stored;
 
-• Next, specify the parameters for the macro program (for example %let dataset= mydata) see CALL SPECI.sas program.
+• Lastly, specify the parameters for the macro program (for example %let dataset= mydata) see CALL SPECI.sas program.
 
      
 # CONTACT INFORMATION 
@@ -35,5 +36,4 @@ There are two SAS® editor programs: the main macro (SPECI.sas) and the program 
   Stanford University School of Medicine
   1070 Arastradero Rd., Suite 100
   Palo Alto, CA. 94304
-  Phone: 213-793-1055
   Email: sailiu.tian@gmail.com
