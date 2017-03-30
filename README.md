@@ -18,7 +18,7 @@ The statistics in the final report include:
 
 # INSTRUCTIONS FOR USING MACRO %SPECI 
 
-There are two SAS® editor programs: the main macro (SPECI.sas) and the program to call the macro (CALL SPECI.sas). The SAS proceeding paper for more instructions and details are available upon request from the author (Sai Liu) and will be posted on the website soon.
+There are two SAS® editor programs: the main macro (SPECI.sas) and the program to call the macro (CALL SPECI.sas). The SAS proceeding paper of this project with more instructions and details are available upon request from the author (Sai Liu) and will be posted on the website (https://www.sas.com/en_us/events/sas-global-forum/sas-global-forum-2017.html, search "A SAS® Macro for Covariate Specification in Linear, Logistic, and Survival Regression" or "Paper 1223").
 
 • First, save the CALL SPECI.sas and SPECI.sas programs to your computer; 
 
