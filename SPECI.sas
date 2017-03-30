@@ -97,7 +97,7 @@ ods listing;
 %let dataout=%qsysfunc(dequote(&dataout));
 
 *Read in dataset from the folder you assign, or read in dataset from work library, if datain leaves blank;
-%if &datain.^=  %then %do;
+%if &datain.^=" "  %then %do;
 	libname lib &datain.;
 	data mydata;set lib.&dataset.(where=(&xvar_cont.^=.));run;
 %end;
