@@ -13,8 +13,8 @@
 /************************************************************************************************************
 * Now, please set up your Parameters below
 *************************************************************************************************************/
-%let datain=""; 		 /*Location of permanent SAS dataset. Leave it blank, if your dataset is in the work library*/	
-%let dataout="";		 /*Location of one-pager report will be saved*/	
+%let datain=" "; 		 /*Location of permanent SAS dataset. Leave it blank, if your dataset is in the work library*/	
+%let dataout=" ";		 /*Location of one-pager report will be saved*/	
 
 %let dataset=;			 /*Name of the dataset*/		
 
