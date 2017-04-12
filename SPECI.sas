@@ -116,20 +116,6 @@ ods listing;
    %let knot=&knot.;
 %end;
 
-* Percentaile of each knot for knots=4, if leave knot1~4 blank;
-%if &knot1.= and &knot2.= and &knot3.= and &knot4.= %then %do;
-	%let knot1=P5;				
-	%let knot2=P35;				
-	%let knot3=P65;				
-	%let knot4=P95;				
-%end;
-%else %do;
-   %let &knot1.=&knot1.;
-   %let &knot2.=&knot2.;
-   %let &knot3.=&knot3.;
-   %let &knot4.=&knot4.;
-%end;
-
 * norm=2, if leave norm= blank;
 %if &norm.=  %then %do;
    %let norm=2;				
