@@ -5,11 +5,12 @@
 /*     AUTHOR: Sai Liu, MPH, Stanford University                                          	            */
 /*         OS: Windows 7 Ultimate 64-bit								    */
 /*   Software: SAS 9.4											    */
-/*       DATE: 29 DEC 2016                                        					    */
+/*  CREATE ON: 29 DEC 2016                                        					    */
+/*  UPDATE ON: 26 JAN 2018
 /*DESCRIPTION: This program produces a one-page report to help users compare and select the appropriate     */
 /*			   functional form of a variable in continuous, categorical, and spline form        */
 /*													    */
-/*    Copyright (C) <2017>  <Sai Liu and Margaret R Stedman>				                    */
+/*    Copyright (C) <2018>  <Sai Liu and Margaret R Stedman>				                    */
 /*													    */
 /*    This program is free software: you can redistribute it and/or modify				    */
 /*    it under the terms of the GNU General Public License as published by			     	    */
@@ -203,6 +204,9 @@ data data_prep(drop=d);
   do d = 1 to %eval(&num_cat);
    &xvar_cat.dum(d)=(newcat=d);
   end;
+
+  &xvar_cont._sqr=&xvar_cont.*&xvar_cont.;
+  &xvar_cont._log=log(&xvar_cont.);
 run;	
 
 %mend DATAPREP;
@@ -223,6 +227,14 @@ proc reg data=data_prep outest=est1cat;
   model &yvar.= &xvar_cat.dum1-&xvar_cat.dum%eval(&num_cat) &covarlist_cat. &covarlist_cont./selection=rsquare ADJRSQ rsquare mse aic bic; run; quit;	
 proc reg data=data_prep outest=est1Spline;
    model &yvar. = &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont./selection=rsquare ADJRSQ rsquare mse aic bic;run; quit;
+*** add sqr term;
+proc reg data=data_prep outest=est1Sqr;
+  model &yvar.= &xvar_cont. &xvar_cont._sqr &covarlist_cat. &covarlist_cont./selection=rsquare ADJRSQ rsquare mse aic bic;run;quit;
+*** add log form;
+proc reg data=data_prep outest=est1Log;
+  model &yvar.= &xvar_cont._log &covarlist_cat. &covarlist_cont./selection=rsquare ADJRSQ rsquare mse aic bic;run;quit;
+
+
 
 ** Get estimates from model;
 * continuous;
@@ -255,8 +267,18 @@ data Spline(keep=int_sp sp sp1--sp%eval(&knot-2) temp);
    do i =1 to %eval(&knot-2);
   	a(i)=b(i);
 	end; temp = 1; if _n_=nobs;run;			
+* squared;
+data Squared(keep=int_sqr SqrPred1 SqrPred2 temp);
+   set est1Sqr(rename=(intercept=int_sqr)) nobs=nobs;
+   SqrPred1 = &xvar_cont.;   
+   SqrPred2 = &xvar_cont._sqr;
+temp = 1;if _n_=nobs;run;
+* Log;
+data LOG(keep=int_LOG LOGPred temp);
+   set est1Log(rename=(intercept=int_LOG)) nobs=nobs;
+   LOGPred = &xvar_cont._log ;temp = 1;if _n_=nobs;run;
 
-data Data_est;set Line; set Cat;set Spline;run;
+data Data_est;set Line; set Cat;set Spline; set Squared; set log;run;
 
 data Data_plot;
    merge Data_prep (drop= &xvar_cat.dum1-&xvar_cat.dum%eval(&num_cat)) Data_est;
@@ -277,6 +299,11 @@ data Data_final(drop=k sum);
    set data_cat;
    * model with exposure variable as continuous ;
    Linear = (int_line+(&xvar_cont.*LinPred));				/* Y-hat = a + b(&xvar_cont.)*x(&xvar_cont.) */
+   * model with exposure variable as squared ;
+   Squred = (int_sqr+(&xvar_cont.*SqrPred1+&xvar_cont._sqr*SqrPred2));				/* Y-hat = a + b(&xvar_cont.)*x(&xvar_cont.) */
+   * model with exposure variable as logged ;
+   Log = (int_log+(&xvar_cont._log*LogPred));				/* Y-hat = a + b(&xvar_cont.)*x(&xvar_cont.) */
+
    * model with exposure variable as spline ;
    sum=0;
    array c{%eval(&knot-2)} sp1-sp%eval(&knot-2);
@@ -291,7 +318,7 @@ retain;run;
 * Calculate the mid-point value of exposure variable of interest by ((max - min)/2 + min);
 PROC SQL;
 	CREATE TABLE mid AS
-	SELECT temp, Linear as mid_linear, cat as mid_cat,spline as mid_spline, min(&xvar_cont.)as min, max(&xvar_cont.) as max, 
+	SELECT temp, Linear as mid_linear, cat as mid_cat,spline as mid_spline, Squred as mid_Squred, Log as mid_log, min(&xvar_cont.)as min, max(&xvar_cont.) as max, 
 		  ((calculated max)-(calculated min))/2 + (calculated min) as mid, abs((&xvar_cont. - (calculated mid))) as abs_diff
 	FROM Data_final	order by abs_diff;QUIT;
 * Keep predicted values for Y from mid-point;
@@ -303,12 +330,18 @@ data data_fig;
 	ctr_line=Linear-mid_linear;
 	ctr_cat=Cat-mid_cat;
 	ctr_spline=Spline-mid_spline;
+	ctr_sqr=Squred-mid_Squred;
+	ctr_log=log-mid_log;
+
 	* Assign min and max value as new macro variables so as to set up x axis range in the plot;
 	call symput('minvalue',min);
 	call symput('maxvalue',max);
-	label ctr_line='Continuous';
+
+	label ctr_line='Linear';
 	label ctr_cat='Categorical';
 	label ctr_spline='Spline';
+	label ctr_sqr='Squared';
+	label ctr_log='Logged';
 
 run;
 * Sort dataset by exposure variable;
@@ -320,7 +353,10 @@ ods  graphics on / reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
 series x=&xvar_cont. y=ctr_line/LINEATTRS = (color=ROSE THICKNESS = 4);
 series x=&xvar_cont. y=ctr_cat/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=ctr_sqr/LINEATTRS = (color=DEPPK THICKNESS = 4);
+series x=&xvar_cont. y=ctr_log/LINEATTRS = (color=STBR THICKNESS = 4);
 series x=&xvar_cont. y=ctr_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+
 YAXIS LABEL ="Centralized Predicted &yvar." ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
@@ -330,10 +366,13 @@ ods printer close;
 
 /*Figure B (Summary Table for Comparing Model Statistics) */;
 * Integrate Statistics from models with exposure variable as continuous, categories, and spline;
-data table_line;length model $ 10;set est1line (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Continuous"; if _n_=nobs;run;
+data table_line;length model $ 10;set est1line (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Linear"; if _n_=nobs;run;
 data table_cat;length model $ 10;set est1cat (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Categorical"; if _n_=nobs;run;
 data table_Spline;length model $ 10;set est1Spline (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Spline"; if _n_=nobs;run;
-data table1;set table_line table_cat table_Spline;run;
+data table_sqr;length model $ 10;set est1sqr (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Squared"; if _n_=nobs;run;
+data table_log;length model $ 10;set est1log (keep=_ADJRSQ_ _EDF_ _MSE_ _RSQ_ _AIC_ _BIC_) nobs=nobs;model="Logged"; if _n_=nobs;run;
+
+data table1;set table_line table_cat table_sqr table_log table_Spline;run;
 
 * Report Summary Table;
 options printerpath=png nodate papersize=('8in','5in');
@@ -363,20 +402,32 @@ proc reg data=Data_prep;
 proc reg data=Data_prep;
   model &yvar.= &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont.;
   output out=rplot_sp p=pred r=res;run;
+proc reg data=Data_prep;
+  model &yvar.= &xvar_cont. &xvar_cont._sqr &covarlist_cat. &covarlist_cont.;
+  output out=rplot_sqr p=pred r=res;run;
+proc reg data=Data_prep;
+  model &yvar.= &xvar_cont._log &covarlist_cat. &covarlist_cont.;
+  output out=rplot_log p=pred r=res;run;
 
-data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. res);Form='Continuous';run;
+data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. res);Form='Linear';run;
 data rplot_cat;length Form $12.;set rplot_cat(keep=&xvar_cont. res);Form='Categorical';run;
+data rplot_sqr;length Form $12.;set rplot_sqr(keep=&xvar_cont. res);Form='Squared';run;
+data rplot_log;length Form $12.;set rplot_log(keep=&xvar_cont. res);Form='Logged';run;
 data rplot_sp;length Form $12.;set rplot_sp(keep=&xvar_cont. res);Form='Spline';run;
+
 proc sort data=rplot_cat;by &xvar_cont.;run;
 proc sort data=rplot_c;by &xvar_cont.;run;
 proc sort data=rplot_sp;by &xvar_cont.;run;
-data rplot_all;	set rplot_c rplot_cat rplot_sp;	by &xvar_cont.;run;
+proc sort data=rplot_sqr;by &xvar_cont.;run;
+proc sort data=rplot_log;by &xvar_cont.;run;
+
+data rplot_all;	set rplot_c rplot_cat rplot_sqr rplot_log rplot_sp;	by &xvar_cont.;run;
 
 * Plot residual with value of independent variable from linear model;
 ods listing gpath="&dataout.";
 ods  graphics on / reset=index imagefmt=png imagename="FigC - &xvar_cont." ;
 proc sgpanel data =rplot_all;	
-panelby Form/columns=3;
+panelby Form/columns=5;
 scatter x=&xvar_cont. y=res;
 colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 refline 0 /transparency=0.5 axis=y;run;
@@ -418,6 +469,16 @@ ods output  Rsquare=est1Spline_sq  FitStatistics=est1Spline_fit GlobalTests=est1
 proc logistic data = data_prep descending outest=est1Spline;
    class &covarlist_cat. / param=glm;
    model &yvar. = &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont./rsquare influence;run; quit;								
+*add squared terms;
+ods output  Rsquare=est1Sqr_sq  FitStatistics=est1sqr_fit GlobalTests=est1sqr_glob convergencestatus=est1sqr_con association=est1sqr_c;
+proc logistic data = data_prep descending outest=est1Sqr;
+   class &covarlist_cat. / param=glm;
+   model &yvar. = &xvar_cont. &xvar_cont._sqr &covarlist_cat. &covarlist_cont./rsquare influence;run; quit;								
+*add log terms;
+ods output  Rsquare=est1log_sq  FitStatistics=est1log_fit GlobalTests=est1log_glob convergencestatus=est1log_con association=est1log_c;
+proc logistic data = data_prep descending outest=est1log;
+   class &covarlist_cat. / param=glm;
+   model &yvar. = &xvar_cont._log &covarlist_cat. &covarlist_cont./rsquare influence;run; quit;								
 
 ** Get estimates from modeling ;
 * continuous;
@@ -434,8 +495,18 @@ data Spline(keep=int_sp sp sp1--sp%eval(&knot-2) temp);
    array a{%eval(&knot-2)} sp1-sp%eval(&knot-2);
    array b(%eval(&knot-2)) &xvar_cont.1-&xvar_cont.%eval(&knot-2);
    do i =1 to %eval(&knot-2);  	a(i)=b(i);	end; temp = 1;run;																								
+* Squared;
+data Sqr(keep=int_sqr SqrPred1 SqrPred2 temp);
+   set est1sqr(rename=(intercept=int_sqr));
+   SqrPred1 = &xvar_cont.;
+   SqrPred2 = &xvar_cont._sqr;
+   temp = 1;run;
+ * Log;
+data Log(keep=int_log LogPred temp);
+   set est1log(rename=(intercept=int_log));
+   LogPred = &xvar_cont._log;temp = 1;run;
 
-data Data_est;set Line; set Cat;set Spline;run;
+data Data_est;set Line; set Cat;set Spline; set Log; set Sqr; run;
 
 data Data_plot;
    merge Data_prep Data_est;
@@ -456,6 +527,9 @@ data Data_final(drop=k sum);
    set data_logcat;
    * model with exposure variable as continuous ;
    Log_Linear =  (int_line+(&xvar_cont.*LinPred));		/* Logit(P) = a + b(&xvar_cont.)*x(&xvar_cont.) */
+   Log_sqr =  (int_sqr+(&xvar_cont.*SqrPred1+&xvar_cont._sqr*SqrPred2));		/* Logit(P) = a + b(&xvar_cont.)*x(&xvar_cont.) */
+   Log_log=  (int_log+(&xvar_cont._log*logPred));		/* Logit(P) = a + b(&xvar_cont.)*x(&xvar_cont.) */
+
    * model with exposure variable as spline;
    sum=0;
    array c{%eval(&knot-2)} sp1-sp%eval(&knot-2);
@@ -470,7 +544,7 @@ retain;run;
 * Calculate the mid-point value of exposure variable of interest by ((max - min)/2 + min);
 PROC SQL;
 	CREATE TABLE mid AS
-	SELECT temp, Log_Linear as mid_linear, Log_cat as mid_cat,Log_spline as mid_spline, min(&xvar_cont.)as min, max(&xvar_cont.) as max, 
+	SELECT temp, Log_Linear as mid_linear, Log_cat as mid_cat,Log_spline as mid_spline, Log_Log as mid_Log, Log_sqr as mid_sqr, min(&xvar_cont.)as min, max(&xvar_cont.) as max, 
 		  ((calculated max)-(calculated min))/2 + (calculated min) as mid, abs((&xvar_cont. - (calculated mid))) as abs_diff
 	FROM Data_final	order by abs_diff;QUIT;
 
@@ -485,13 +559,19 @@ data data_fig;
 	log_mid_line=Log_Linear-mid_linear;
 	log_mid_cat=Log_Cat-mid_cat;
 	log_mid_spline=Log_Spline-mid_spline;
+	log_mid_log=Log_log-mid_log;
+	log_mid_sqr=Log_sqr-mid_sqr;
+
 	* Assign min and max value as new macro variables so as to set up x axis range in the plot;
 	call symput('minvalue',min);
 	call symput('maxvalue',max);
 
-	label log_mid_line='Continuous';
+	label log_mid_line='Linear';
 	label log_mid_cat='Categorical';
 	label log_mid_spline='Spline';
+	label log_mid_log='Log';
+	label log_mid_Sqr='Squared';
+
 run;
 
 
@@ -504,7 +584,10 @@ ods  graphics on /reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
 series x=&xvar_cont. y=log_mid_line/LINEATTRS = (color=ROSE THICKNESS = 4);
 series x=&xvar_cont. y=log_mid_cat/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_sqr/LINEATTRS = (color=DEPPK THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_log/LINEATTRS = (color=STBR THICKNESS = 4);
 series x=&xvar_cont. y=log_mid_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+
 YAXIS LABEL ="Centralized Logit(P(&yvar.=1))" ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
@@ -526,12 +609,16 @@ proc transpose data=&form._stat out=&form._tran(drop=_LABEL_);run;
 %form(line)
 %form(cat)
 %form(spline)
+%form(sqr)
+%form(log)
 
-data line_tran;length _name_ $13;set line_tran; _NAME_="Continuous";run;
+data line_tran;length _name_ $13;set line_tran; _NAME_="Linear";run;
 data cat_tran;length _name_ $13;set cat_tran; _NAME_="Categorical";run;
+data sqr_tran;length _name_ $13;set sqr_tran; _NAME_="Squared";run;
+data log_tran;length _name_ $13;set log_tran; _NAME_="Log";run;
 data spline_tran;length _name_ $13;set spline_tran; _NAME_="Spline";run;
 
-data table;	set line_tran cat_tran spline_tran;run;
+data table;	set line_tran cat_tran sqr_tran log_tran spline_tran;run;
 
 * Report Summary Table;
 options printerpath=png nodate papersize=('8in','5in');
@@ -566,22 +653,36 @@ proc logistic data=Data_prep descending outest=est1Line;
   class &covarlist_cat.  / param=glm;
   model &yvar.= &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont.;
   output out=rplot_sp prob=p reschi=pr;run;
-  
+*Squared;
+proc logistic data=Data_prep descending outest=est1Line;
+  class &covarlist_cat.  / param=glm;
+  model &yvar.= &xvar_cont. &xvar_cont._sqr &covarlist_cat. &covarlist_cont.;
+  output out=rplot_sqr prob=p reschi=pr;run;
+*Log;
+proc logistic data=Data_prep descending outest=est1Line;
+  class &covarlist_cat.  / param=glm;
+  model &yvar.= &xvar_cont._log &covarlist_cat. &covarlist_cont.;
+  output out=rplot_log prob=p reschi=pr;run;
+
 data rplot_cat;length Form $12.;set rplot_cat(keep=&xvar_cont. pr);Form='Categorical';run;
-data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. pr);Form='Continuous';run;
+data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. pr);Form='Linear';run;
+data rplot_sqr;length Form $12.;set rplot_sqr(keep=&xvar_cont. pr);Form='Squared';run;
+data rplot_log;length Form $12.;set rplot_log(keep=&xvar_cont. pr);Form='Log';run;
 data rplot_sp;length Form $12.;set rplot_sp(keep=&xvar_cont. pr);Form='Spline';run;
 
 proc sort data=rplot_cat;by &xvar_cont.;run;
 proc sort data=rplot_c;by &xvar_cont.;run;
 proc sort data=rplot_sp;by &xvar_cont.;run;
+proc sort data=rplot_sqr;by &xvar_cont.;run;
+proc sort data=rplot_log;by &xvar_cont.;run;
 
-data rplot_all;	set rplot_c rplot_cat rplot_sp;	by &xvar_cont.;run;
+data rplot_all;	set rplot_c rplot_cat rplot_sqr rplot_log rplot_sp;by &xvar_cont.;run;
 
 * Plotting Pearson Residual with value of exposure from continuous model;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigC - &xvar_cont." ;
 proc sgpanel data =rplot_all;	
-panelby Form/columns=3;
+panelby Form/columns=5;
 scatter x=&xvar_cont. y=pr;
 colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 refline 0 /transparency=0.2 axis=y;
@@ -590,13 +691,18 @@ ods graphics off;
 ods printer close;
 
 /*Plot Figure D (Scatter Plot of data distribution ) */;
-ods listing gpath="&dataout.";
+ods listing gpath="&dataout." style=statistical;
 ods graphics on /reset=index imagefmt=png imagename="FigD - &xvar_cont." ;
-proc sgplot data = Data_fig; 
-scatter x = &xvar_cont. y=&yvar.; 
-yaxis values=(0 to 1 by 1);
-XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
+proc sgpanel data = Data_fig;
+panelby &yvar.;
+HISTOGRAM &xvar_cont.; 
+colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
+/*proc sgplot data = Data_fig; */
+/*scatter x = &xvar_cont. y=&yvar.; */
+/*yaxis values=(0 to 1 by 1);*/
+/*XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			*/
+/*run;*/
 ods graphics off;
 ods printer close;
 %MEND SPECI_LOGISTIC;
@@ -629,6 +735,18 @@ proc phreg data=data_prep outest=est1Spline;
    class &covarlist_cat. / param=glm;
   model &time2event.*&EVENT.(0)= &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont.;
 run;quit;
+*add log-transform;
+ods output  FitStatistics=est1log_fit GlobalTests=est1log_glob convergencestatus=est1log_con censoredsummary=est1log_censor;
+proc phreg data = data_prep outest=est1log;
+   class &covarlist_cat. / param=glm;
+   model &time2event.*&EVENT.(0) =&xvar_cont._log &covarlist_cat. &covarlist_cont.;
+run;quit;
+*add squared term;
+ods output  FitStatistics=est1sqr_fit GlobalTests=est1sqr_glob convergencestatus=est1sqr_con censoredsummary=est1sqr_censor;
+proc phreg data = data_prep outest=est1sqr;
+   class &covarlist_cat. / param=glm;
+   model &time2event.*&EVENT.(0) =&xvar_cont. &xvar_cont._sqr &covarlist_cat. &covarlist_cont.;
+run;quit;
 
 
 ** Get estimates from modeling ;
@@ -659,7 +777,15 @@ data Spline(keep=sp sp1--sp%eval(&knot-2) temp);
    array b(%eval(&knot-2)) &xvar_cont.1-&xvar_cont.%eval(&knot-2);
    do i =1 to %eval(&knot-2);  	a(i)=b(i);	end; temp = 1;run;																								
 
-data Data_est;set Line; set Cat;set Spline;run;
+* Log;
+ data Log(keep=Logpred temp);
+   set est1Log;LogPred = &xvar_cont._Log;temp = 1;run;
+* Squared term;
+ data Sqr(keep=Sqrpred1 Sqrpred2 temp);
+   set est1Sqr;SqrPred1 = &xvar_cont.; SqrPred2 = &xvar_cont._Sqr;;temp = 1;run;
+
+
+data Data_est;set Line; set Cat;set Spline; set Log; set Sqr; run;
 
 data Data_plot;
    merge Data_prep(in=a) Data_est(in=b);
@@ -689,13 +815,18 @@ data Data_final(drop=k sum);
    sum=sum+c(k)*d(k);
    end;
    Log_Spline = ((&xvar_cont.*sp) + sum);		/* Log(HR) = b(&xvar_cont.)*x(&xvar_cont.) + b(sp1)*x(&xvar_cont.) + b(sp2)*x(&xvar_cont.) + .... b(spn)*x(&xvar_cont.)*/											
+   * model with exposure variable as Log ;
+   Log_Log =  (&xvar_cont._log*LogPred);		/* Log(HR) = b(&xvar_cont.)*x(&xvar_cont.) */
+   * model with exposure variable as Squared ;
+   Log_Sqr =  (&xvar_cont.*SqrPred1 + &xvar_cont._sqr*SqrPred2);		/* Log(HR) = b(&xvar_cont.)*x(&xvar_cont.) */
+
 retain;run;		
 
 * Centralize predictions at mid-point to align predicted plots;
 * Calculate the mid-point value of exposure variable of interest by ((max - min)/2 + min);
 PROC SQL;
 	CREATE TABLE mid AS
-	SELECT temp, Log_Linear as mid_linear, Log_cat as mid_cat,Log_spline as mid_spline, min(&xvar_cont.)as min, max(&xvar_cont.) as max, 
+	SELECT temp, Log_Linear as mid_linear, Log_cat as mid_cat,Log_spline as mid_spline, Log_Log as mid_Log, Log_sqr as mid_sqr, min(&xvar_cont.)as min, max(&xvar_cont.) as max, 
 		  ((calculated max)-(calculated min))/2 + (calculated min) as mid, abs((&xvar_cont. - (calculated mid))) as abs_diff
 	FROM Data_final	order by abs_diff;QUIT;
 
@@ -709,13 +840,19 @@ data data_fig;
 	log_mid_line=Log_Linear-mid_linear;
 	log_mid_cat=Log_Cat-mid_cat;
 	log_mid_spline=Log_Spline-mid_spline;
+	log_mid_log=Log_log-mid_log;
+	log_mid_sqr=Log_sqr-mid_sqr;
+
 	* Assign min and max value as new macro variables so as to set up x axis range in the plot;
 	call symput('minvalue',min);
 	call symput('maxvalue',max);
 
-	label log_mid_line='Continuous';
+	label log_mid_line='Linear';
 	label log_mid_cat='Categorical';
+	label log_mid_log='Log';
+	label log_mid_Sqr='Squared';
 	label log_mid_spline='Spline';
+
 run;
 
 * Sort dataset by exposure variable;
@@ -727,7 +864,10 @@ ods  graphics on /reset=index imagefmt=png imagename="FigA - &xvar_cont." ;
 proc sgplot data =Data_fig;											
 series x=&xvar_cont. y=log_mid_line/LINEATTRS = (color=ROSE THICKNESS = 4);
 series x=&xvar_cont. y=log_mid_cat/LINEATTRS = (color=o  THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_sqr/LINEATTRS = (color=DEPPK THICKNESS = 4);
+series x=&xvar_cont. y=log_mid_log/LINEATTRS = (color=STBR THICKNESS = 4);
 series x=&xvar_cont. y=log_mid_spline/LINEATTRS = (color=BIGB THICKNESS = 4);
+
 YAXIS LABEL ="Centralized Log(HR(&event.=1))" ; 
 XAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 run;
@@ -746,26 +886,37 @@ proc transpose data=&form._stat out=&form._tran(drop=_LABEL_);run;
 %form(line)
 %form(cat)
 %form(spline)
+%form(log)
+%form(sqr)
 
-data line_tran;length _name_ $13;set line_tran; _NAME_="Continuous";run;
+data line_tran;length _name_ $13;set line_tran; _NAME_="Linear";run;
 data cat_tran;length _name_ $13;set cat_tran; _NAME_="Categorical";run;
 data spline_tran;length _name_ $13;set spline_tran; _NAME_="Spline";run;
+data log_tran;length _name_ $13;set log_tran; _NAME_="Log";run;
+data sqr_tran;length _name_ $13;set sqr_tran; _NAME_="Squared";run;
 
-data table;	set line_tran cat_tran spline_tran;run;
+/*data table;	set line_tran cat_tran spline_tran log_tran sqr_tran;run;*/
+
+data table;	
+	set line_tran cat_tran sqr_tran log_tran spline_tran;
+	*change the model convergance to be 1-converge, 0=not converged;
+	if col6=0 then col7=1;
+	else col7=0;
+run;
 
 * Report Summary Table;
 options printerpath=png nodate papersize=('8in','5in');
 ods _all_ close;
 ods printer file="&dataout.\FigB - &xvar_cont..png";
 Proc report data=table nowd ;
-column _name_ col1 col2 col3 col4 col5 col6;
+column _name_ col2 col3 col1 col4 col5 col7;
 define _name_ /"Covariate Specification" group order=data ;
-define col1/ "-2LogL (bigger is better)" analysis format=10.5 ;
 define col2/ "AIC (smaller is better)" analysis format=10.5 ;
 define col3/ "SBC/BIC (smaller is better)" analysis format=10.5 ;
+define col1/ "-2LogL (bigger is better)" analysis format=10.5 ;
 define col4/ "Likelihood Test (P-value)" analysis format=10.4 ;
 define col5/ "Wald Test (P-value)" analysis format=10.4 ;
-define col6/ "Model Convergance(0=Yes, 1=No)" analysis format=1.0 ;
+define col7/ "Model Convergance" analysis format=1.0;
 run;
 ods printer close;
 ods listing;
@@ -784,22 +935,36 @@ proc phreg data=Data_fig;
   class &covarlist_cat.  / param=glm;
   model &time2event.*&EVENT.(0)= &xvar_cont. &xvar_cont.1 -- &xvar_cont.%eval(&knot-2) &covarlist_cat. &covarlist_cont./ties=efron;
   output out=rplot_sp resdev=dev;run;
+proc phreg data=Data_fig;
+  class &covarlist_cat.  / param=glm;
+  model &time2event.*&EVENT.(0)= &xvar_cont._log &covarlist_cat. &covarlist_cont./ties=efron;
+  output out=rplot_log resdev=dev;run;
+proc phreg data=Data_fig;
+  class &covarlist_cat.  / param=glm;
+  model &time2event.*&EVENT.(0)= &xvar_cont. &xvar_cont._sqr &covarlist_cat. &covarlist_cont./ties=efron;
+  output out=rplot_sqr resdev=dev;run;
 
 data rplot_cat;length Form $12.;set rplot_cat(keep=&xvar_cont. dev);Form='Categorical';run;
-data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. dev);Form='Continuous';run;
+data rplot_c;length Form $12.;set rplot_c(keep=&xvar_cont. dev);Form='Linear';run;
+data rplot_log;length Form $12.;set rplot_log(keep=&xvar_cont. dev);Form='Log';run;
+data rplot_sqr;length Form $12.;set rplot_sqr(keep=&xvar_cont. dev);Form='Squared';run;
 data rplot_sp;length Form $12.;set rplot_sp(keep=&xvar_cont. dev);Form='Spline';run;
 
 proc sort data=rplot_cat;by &xvar_cont.;run;
 proc sort data=rplot_c;by &xvar_cont.;run;
+proc sort data=rplot_log;by &xvar_cont.;run;
+proc sort data=rplot_sqr;by &xvar_cont.;run;
 proc sort data=rplot_sp;by &xvar_cont.;run;
 
-data rplot_all;	set rplot_c rplot_cat rplot_sp;	by &xvar_cont.;run;
+/*data rplot_all;	set rplot_c rplot_cat rplot_sp rplot_log rplot_sqr;by &xvar_cont.;run;*/
+data rplot_all;	set rplot_c rplot_cat rplot_sqr rplot_log rplot_sp;by &xvar_cont.;run;
+
 
 * Plot Devance Residual with predicted value of exposure as continuous;
 ods listing gpath="&dataout.";
 ods  graphics on /reset=index imagefmt=png imagename="FigC - &xvar_cont." ;
 proc sgpanel data =rplot_all;	
-panelby Form/columns=3;
+panelby Form/columns=5;
 scatter x=&xvar_cont. y=dev;
 colAXIS values=(&minvalue. to &maxvalue.) LABEL="&xvar_cont." ; 			
 refline 0 /transparency=0.2 axis=y;
@@ -810,8 +975,9 @@ ods printer close;
 /*Plot Figure D (Kaplan Meier Curve) */;
 ods listing gpath="&dataout.";
 ods graphics on /reset=index imagefmt=png imagename="FigD - &xvar_cont." ;
-proc lifetest data=Data_fig plots=survival(atrisk(maxlen=13 outside(0.05)));
+proc lifetest data=Data_fig plots=survival(atrisk(maxlen=13 outside(0.20)));
    time &time2event.*&EVENT.(0);
+   strata &xvar_cat.;
    run;
 ods graphics off;
 ods printer close;
@@ -851,5 +1017,6 @@ ods listing;
  proc catalog c=work.gseg kill;run;
 
  %MEND REPORT;
+
 
 
