@@ -1,15 +1,15 @@
 # A SAS® Macro for Covariate Specification in Linear, Logistic, and Survival Regression
 
-This website will introduce a customizable user-friendly SAS® macro %SPECI to quickly produce a one page report that organizes multiple commonly-used statistics to help you compare and select the appropriate functional form from continuous, categorical, and spline terms in linear regression, logistic regression, and survival analysis models.  
+This website will introduce a customizable user-friendly SAS® macro %SPECI to quickly produce a one page report that organizes multiple commonly-used statistics to help you compare and select the appropriate functional form from linear, categorical, squared, log and spline terms in linear regression, logistic regression, and survival analysis models.  
 
 
 The statistics in the final report include:
 
-•	Predicted Plot showing predicted values for each of the three functional forms. 
+•	Predicted Plot showing predicted values for each of the five functional forms. 
 
 •	Summary Diagnostic Statistics Table (See complete list and descriptions for each model in Appendix A) 
 
-•	Residual Plot - for model with the covariate in continuous, categorical and spline terms. 
+•	Residual Plot - for model with the covariate in linear, categorical, squared, log and spline terms. 
 
 •	Correlation Plot - Distribution of outcome variable by the covariate in continuous form (linear and logistic regression models only)
 
